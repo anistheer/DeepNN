@@ -102,11 +102,11 @@ class MLPptorch(nn.Module):
         # nn.Sequential - контейнер модулей
         # он последовательно объединяет и позволяет запускать их одновременно
         self.layers = nn.Sequential(nn.Linear(in_size, hidden1_size), # слой линейных сумматоров
-                                    nn.Sigmoid(),                    # функция активации
+                                    nn.ReLU(),                    # функция активации
                                     nn.Linear(hidden1_size, hidden2_size),
-                                    nn.Sigmoid(),
+                                    nn.ReLU(),
                                     nn.Linear(hidden2_size, out_size),
-                                    nn.Sigmoid(),
+                                    nn.ReLU(),
         )
 
     
