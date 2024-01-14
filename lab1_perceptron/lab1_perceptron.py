@@ -47,20 +47,40 @@ def predict(Xp):
 # обучение
 # у перцептрона Розенблатта обучаются только веса выходного слоя 
 # как и раньше обучаем подавая по одному примеру и корректируем веса в случае ошибки
-n_iter=5
-eta = 0.01
+n_iter=10000
+eta = 0.0001
+min_weight_change = 1e-6
+
+prev_weights_out = Wout.copy()
+prev_weights_in = Win.copy()
+
 for i in range(n_iter):
     print(Wout.reshape(1, -1))
     for xi, target, j in zip(X, y, range(X.shape[0])):
         pr, hidden = predict(xi) 
+
         Wout[1:] += ((eta * (target - pr)) * hidden).reshape(-1, 1)
         Wout[0] += eta * (target - pr)
+    
+    weight_change_out = np.sum(np.abs(prev_weights_out - Wout))
+    weight_change_in = np.sum(np.abs(prev_weights_in - Win))
+    
+    if weight_change_out < min_weight_change and weight_change_in < min_weight_change:
+        print(f"Модель сошлась на {i} шаге")
+        print("Wout:", Wout.reshape(1, -1))
+        print("Win:", Win.reshape(1, -1), "\n")
+        break
+    else:
+        prev_weights_out = Wout.copy()
+        prev_weights_in = Win.copy()
 
 # посчитаем сколько ошибок делаем на всей выборке
 y = df.iloc[:, 4].values
 y = np.where(y == "Iris-setosa", 1, -1)
 X = df.iloc[:, [0, 2]].values
 pr, hidden = predict(X)
-sum(pr-y.reshape(-1, 1))
+
+print("zip(y, pr)", list(zip(y, pr.flatten())))
+print("Result:", sum(pr-y.reshape(-1, 1)))
 
 # далее оформляем все это в виде отдельного класса neural.py
