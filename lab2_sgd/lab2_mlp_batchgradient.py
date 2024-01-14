@@ -84,6 +84,15 @@ def train(x_values, target, learning_rate):
     backward(learning_rate, target, output[2], output)
     return None
 
+def train_stochastic(x_values, target, learning_rate):
+    for i in range(len(x_values)):
+        random_index = np.random.randint(0, len(x_values))
+        x_sample = x_values[random_index].reshape(1, -1)
+        y_sample = target[random_index].reshape(1, -1)
+        
+        output = feed_forward(x_sample)
+        backward(learning_rate, y_sample, output[2], output)
+
 # функция предсказания возвращает только выход последнего слоя
 def predict(x_values):
     return feed_forward(x_values)[-1]
@@ -95,7 +104,7 @@ learning_rate = 0.01
 
 # обучаем сеть (фактически сеть это вектор весов weights)
 for i in range(iterations):
-    train(X, y, learning_rate)
+    train_stochastic(X, y, learning_rate)
 
     if i % 10 == 0:
         print("На итерации: " + str(i) + ' || ' + "Средняя ошибка: " + str(np.mean(np.square(y - predict(X)))))
