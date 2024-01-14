@@ -50,6 +50,7 @@ def predict(Xp):
 n_iter=5
 eta = 0.01
 for i in range(n_iter):
+    print(Wout.reshape(1, -1))
     for xi, target, j in zip(X, y, range(X.shape[0])):
         pr, hidden = predict(xi) 
         Wout[1:] += ((eta * (target - pr)) * hidden).reshape(-1, 1)
