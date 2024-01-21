@@ -16,7 +16,10 @@ Created on Mon Apr 19 16:36:41 2021
 import torch
 import cv2
 import torchvision.transforms as transforms
+import matplotlib
 import matplotlib.pyplot as plt
+
+matplotlib.use('QtAgg')
 
 
 # пара функций необходимых для запуска на CPU
@@ -105,7 +108,7 @@ ssdetector.eval()     # переключаем модель в режим пре
 
 
 # Теперь непостредственно работа
-image_path = 'input\image_4.jpg' # задаем путь к файлу
+image_path = 'input/image_4.jpg' # задаем путь к файлу
 im = cv2.imread(image_path)   # считываем картинку 
 image = transform(cv2.cvtColor(im, cv2.COLOR_BGR2RGB)) # изменяем цветовую палитру иприменяем трансформации
 # добавляем размерность, т.к. сети в pytorch работают только с батчами
@@ -127,8 +130,9 @@ classes_to_labels = utils.get_coco_object_dictionary()
 # отрисовываем ограничивающий прямоугольник, и название класса на картинке
 image_result = draw_bboxes(im, best_results_per_input, classes_to_labels)
 plt.imshow(image_result)
+plt.show()
 
 # сохраняем на диск
 file_name = image_path.split('\\')[-1]
-cv2.imwrite(f"outputs/{file_name}", image_result)
+cv2.imwrite(f"outputs\{file_name}", image_result)
 

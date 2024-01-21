@@ -106,7 +106,7 @@ ssdetector.eval()     # переключаем модель в режим пре
 
 
 # Теперь непостредственно работа
-video_path = 'input\\video_2.mp4' # задаем путь к файлу
+video_path = 'input/video_2.mp4' # задаем путь к файлу
 
 # открываем видеофайл
 vid = cv2.VideoCapture(video_path)
@@ -180,5 +180,5 @@ out.release()
 # cv2.destroyAllWindows()
 
 # Считаем средний fps
-avg_fps = total_fps / f_count
-print(f"Average FPS: {avg_fps:.3f}")
+# avg_fps = total_fps / f_count
+# print(f"Average FPS: {avg_fps:.3f}")
