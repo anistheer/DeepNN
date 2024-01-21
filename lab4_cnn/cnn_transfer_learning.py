@@ -9,8 +9,10 @@ import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 
+matplotlib.use('QtAgg')
 
 # Сначала определим на каком устройстве будем работать - GPU или CPU
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -30,7 +32,7 @@ data_transforms = transforms.Compose([
     ])
 
 # загрузим отдельно обучающий набор
-train_dataset = torchvision.datasets.ImageFolder(root='./hymenoptera_data/train', 
+train_dataset = torchvision.datasets.ImageFolder(root='./animals/train', 
                                               transform=data_transforms)
 
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, 
@@ -47,7 +49,7 @@ len(train_dataset.samples)
 
 
 # и отдельно загрузим тестовый набор
-test_dataset = torchvision.datasets.ImageFolder(root='./hymenoptera_data/val',
+test_dataset = torchvision.datasets.ImageFolder(root='./animals/val',
                                              transform=data_transforms)
 test_loader  = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, 
                                     shuffle=True, num_workers=2) 
@@ -79,7 +81,7 @@ for param in net.parameters():
 # так как выходной слой AlexNet содержит 1000 нейронов (по количеству классов в ImageNet)
 # то нам нужно его заменить на слой, содержащий только 2 класса
 
-num_classes = 2
+num_classes = 3
 
 new_classifier = net.classifier[:-1] # берем все слой классификатора кроме последнего
 new_classifier.add_module('fc',nn.Linear(4096,num_classes))# добавляем последним стоем новый
@@ -162,8 +164,7 @@ for i,j in zip(inputs, pred_class):
     img = np.clip(img, 0, 1)
     plt.imshow(img)
     plt.title(class_names[j])
-    plt.pause(2)
-
+    plt.show()
 
 
 # Нашу модель можно сохранить в файл для дальнейшего использования
