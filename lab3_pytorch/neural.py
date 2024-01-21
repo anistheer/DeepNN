@@ -106,7 +106,7 @@ class MLPptorch(nn.Module):
                                     nn.Linear(hidden1_size, hidden2_size),
                                     nn.ReLU(),
                                     nn.Linear(hidden2_size, out_size),
-                                    nn.ReLU(),
+                                    nn.Softmax(dim=1),
         )
 
     

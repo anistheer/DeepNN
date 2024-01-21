@@ -42,13 +42,13 @@ for i in np.unique(y):
 
 inputSize = X.shape[1] # количество входных сигналов равно количеству признаков задачи 
 hiddenSizes = 50 # задаем число нейронов скрытого слоя 
-outputSize = Y.shape[1] if len(Y.shape) else 1 # количество выходных сигналов равно количеству классов задачи
+outputSize = 3 # количество выходных сигналов равно количеству классов задачи
 
 
 net = MLPptorch(inputSize,hiddenSizes,hiddenSizes,outputSize)
 lossFn = nn.MSELoss()
 
-optimizer = torch.optim.SGD(net.parameters(), lr=0.05)
+optimizer = torch.optim.SGD(net.parameters(), lr=0.0005)
 
 # как работает регуляризация
 # optimizer = torch.optim.SGD(net.parameters(), lr=0.05, weight_decay=0.1)
