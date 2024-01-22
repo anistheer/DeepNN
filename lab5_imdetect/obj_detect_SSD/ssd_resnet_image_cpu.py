@@ -15,6 +15,8 @@ Created on Mon Apr 19 16:36:41 2021
 # импортируем модули
 import torch
 import cv2
+import numpy as np
+import torchvision
 import torchvision.transforms as transforms
 import matplotlib
 import matplotlib.pyplot as plt
@@ -50,12 +52,13 @@ def unwrap_distributed(state_dict):
     return new_state_dict
 
 # функция для отрисовки прямоугольников на изображении
-def draw_bboxes(image, results, classes_to_labels):
+def draw_bboxes_class(image, results, classes_to_labels):
     for image_idx in range(len(results)):
         # размеры изображения
         orig_h, orig_w = image.shape[0], image.shape[1]
         # достаем координаты, название класса и скор
         bboxes, classes, confidences = results[image_idx]
+        className = 'unknown'
         for idx in range(len(bboxes)):
             # координаты углов
             x1, y1, x2, y2 = bboxes[idx]
@@ -69,12 +72,13 @@ def draw_bboxes(image, results, classes_to_labels):
                 image, (x1, y1), (x2, y2), (0, 0, 255), 2, cv2.LINE_AA
             )
             # подписываем название класса
+            className = classes_to_labels[classes[idx]-1]
+            print(className, confidences[idx])
             cv2.putText(
-                image, classes_to_labels[classes[idx]-1], (x1, y1-10),
+                image, className, (x1, y1-10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2
             )
-    return image
-
+    return image, className
 
 # Делаем необходимые приготовления
 
@@ -106,33 +110,43 @@ elif 'cuda':
 ssdetector.to(device) # отправляем модель на устройство CPU или GPU
 ssdetector.eval()     # переключаем модель в режим предсказания (это нужно т.к. некоторые слои меняют свое поведение в режиме обучения и предсказания)
 
+tensor_transform = transforms.Compose([
+    transforms.Resize((300, 300)),
+    transforms.ToTensor(),
+])
+reverse_tensor_transform = transforms.Compose([
+    transforms.ToPILImage(),
+])
 
-# Теперь непостредственно работа
-image_path = 'input/image_4.jpg' # задаем путь к файлу
-im = cv2.imread(image_path)   # считываем картинку 
-image = transform(cv2.cvtColor(im, cv2.COLOR_BGR2RGB)) # изменяем цветовую палитру иприменяем трансформации
-# добавляем размерность, т.к. сети в pytorch работают только с батчами
-image = image.unsqueeze(0).to(device)
+batch_size=10
+test_dataset = torchvision.datasets.ImageFolder(root='./animals/val', transform=tensor_transform)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, 
+                                    shuffle=True,  num_workers=2)
+for inputs, classes in test_loader:
+    for im in inputs:
+        im = reverse_tensor_transform(im)
+        im = np.asarray(im).copy()
+        image = transform(cv2.cvtColor(im, cv2.COLOR_BGR2RGB)) # изменяем цветовую палитру иприменяем трансформации
+        # добавляем размерность, т.к. сети в pytorch работают только с батчами
+        image = image.unsqueeze(0).to(device)
 
-# отключаем градиенты и делаем предсказание
-with torch.no_grad():
-    detections = ssdetector(image)
+        # отключаем градиенты и делаем предсказание
+        with torch.no_grad():
+            detections = ssdetector(image)
 
-# декодируем результат для каждого изображения в батче
-results_per_input = utils.decode_results(detections)
+        # декодируем результат для каждого изображения в батче
+        results_per_input = utils.decode_results(detections)
 
-# отбираем все предсказания для которых "уверенность" алгоритма больше порого
-threshold = 0.5
-best_results_per_input = [utils.pick_best(results, threshold) for results in results_per_input]
+        # отбираем все предсказания для которых "уверенность" алгоритма больше порого
+        threshold = 0.5
+        best_results_per_input = [utils.pick_best(results, threshold) for results in results_per_input]
 
-# по метке класса восстанавливаем его название
-classes_to_labels = utils.get_coco_object_dictionary()
-# отрисовываем ограничивающий прямоугольник, и название класса на картинке
-image_result = draw_bboxes(im, best_results_per_input, classes_to_labels)
-plt.imshow(image_result)
-plt.show()
-
-# сохраняем на диск
-file_name = image_path.split('\\')[-1]
-cv2.imwrite(f"outputs\{file_name}", image_result)
+        # по метке класса восстанавливаем его название
+        classes_to_labels = utils.get_coco_object_dictionary()
+        # отрисовываем ограничивающий прямоугольник, и название класса на картинке
+        image_result, className = draw_bboxes_class(im, best_results_per_input, classes_to_labels)
+        plt.imshow(image_result)
+        plt.title(className)
+        plt.show()
+    break
 
