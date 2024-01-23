@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu May 20 20:36:26 2021
-
-@author: AM4
-"""
-
-# -*- coding: utf-8 -*-
-"""
 Created on Wed May 19 21:13:16 2021
 
 @author: AM4
@@ -22,7 +15,7 @@ By Chris McCormick and Nick Ryan
 
 В коде используется библиотека [transformers](https://github.com/huggingface/transformers) 
 
-Пред использованием необходимо установить пакеты:
+Перед использованием необходимо установить пакеты:
 
 conda install -c conda-forge transformers
 
@@ -43,13 +36,13 @@ else:
     device = torch.device("cpu")
 
 
-# В работе используется набор Russian Language Toxic Comments Dataset https://www.kaggle.com/blackmoon/russian-language-toxic-comments
-# комментариев с сайтов Двач и Пикабу. 
-# он опубликован  в 2019 году и содержит 14 412 комментариев
-# 4 826 из них помечены как токсичные, а 9 586 — как нетоксичные
+#device = torch.device("cpu") # задаем вычислительное CPU, так как модель BERT довольно объемная
+
+# The dataset is hosted on GitHub in this repo: https://nyu-mll.github.io/CoLA/
+
 
 # Загрузка данных реализована на основе pandas dataframe
-df = pd.read_csv("./data/labeled_rutoxic.csv", delimiter=',', header=0, names=['sentence', 'label'])
+df = pd.read_csv("./data/eng_aggresive.tsv", delimiter='\t', header=None, names=['sentence_source', 'label', 'label_notes', 'sentence'])
 
 print('В наборе предложений: {:,}\n'.format(df.shape[0]))
 
@@ -61,24 +54,29 @@ sentences = df.sentence.values
 labels = df.label.values
 
 # Следующий этап - токенизация - разбиение предложений на слова
+
 from transformers import BertTokenizer
 
-# Используем BERT tokenizer, но созданный на основе словаря
-tokenizer = BertTokenizer('./data/vocab_rutoxic.txt', do_lower_case=True, do_basic_tokenize=True, never_split=None)
+# Используем BERT tokenizer, приводим к нижнему регистру
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
-##### размер нового словаря
-tokenizer.vocab_size
+# Пример того как это работает:
+print('Исходное предложение: ', sentences[0])
+print('Токенизированное: ', tokenizer.tokenize(sentences[0]))
 
-# максимальный размер предложения существенно вырос
-sl = [len(tokenizer.convert_tokens_to_ids(tokenizer.tokenize(sen))) for sen in sentences]
+# Предложение также размечается номерами токенов - token ids.
+print('IDs: ', tokenizer.convert_tokens_to_ids(tokenizer.tokenize(sentences[0])))
+
+# Кроме того, нам нужно:
+    
+# 1. Добавить токены начала и конца в каждое предложение [CLS] и [SEP].
+# 2. Привести все предложения к одной длине (максимум 512 токенов). При этом короткие предложения 
+# дополняются специальной маской [PAD], чтобы отличить реальные токены от виртуальных.
+
+# Для этого нам понадобится tokenizer.encode
+
 print('Максимальная длина предложения: ', max([len(tokenizer.convert_tokens_to_ids(tokenizer.tokenize(sen))) for sen in sentences]))
 
-# посмотрим сколько предложений имеет длину более 64 символа
-value_c = pd.Series(sl).value_counts()
-print('Предложений длиннее 64 токена: ', sum(value_c[64:]))
-
-# довольно много, но придется ими пожертвовать
-# будем их обрезать
 
 input_ids = np.zeros((len(sentences),64))
 
@@ -88,11 +86,14 @@ for s,i in zip(sentences,range(len(sentences))):
                         add_special_tokens = True, # У казываем, что нам нужно добавить служебные токены
                         padding = 'max_length',  # дополнение до макс.длины
                         max_length = 64,         # максимальная длина предложений
-                        truncation = True        # все что длиннее max_length будет обрезаться
                    )
     # Формируем список id токенов
     input_ids[i,]=enc_s
 
+# Вот пример того, что получается
+print('Предлжение: ', sentences[0])
+
+print('IDs:', input_ids[0])
 
 # Создаем attention mask для виртуальных токенов
 attention_masks = []
@@ -102,7 +103,6 @@ for s in input_ids:
     #   Если ID > 0, это реальный токен и маска для него 1.
     att_mask = [int(id_ > 0) for id_ in s]
     attention_masks.append(att_mask)
-
 
 # Формируем тестовый и валидационный набор
 from sklearn.model_selection import train_test_split
@@ -125,9 +125,8 @@ validation_masks = torch.tensor(validation_masks)
 # теперь можно создавать Dataset и DataLoader
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 
-# размер батча придется уменьшить (если на GPU), т.к. за счет
-# увеличившегося словаря выросла и модель 
-batch_size = 4
+# DataLoader формирует батчи 
+batch_size = 16
 
 # Пакуем в тренировочный предложения (ID), маску и метки классов
 train_data = TensorDataset(train_inputs, train_masks, train_labels)
@@ -140,15 +139,21 @@ validation_sampler = SequentialSampler(validation_data)
 validation_dataloader = DataLoader(validation_data, sampler=validation_sampler, batch_size=batch_size)
 
 
+
+
 # теперь можно переходить к заданию модели
 
-from transformers import BertForSequenceClassification, AdamW, PretrainedConfig
+from transformers import BertForSequenceClassification, AdamW, BertConfig
 
-# Загрузка теперь делается через конфигурационный файл, в котором изменен размер словаря
-configuration = PretrainedConfig.from_pretrained('./data/config_rutoxic.json')
-model = BertForSequenceClassification(configuration)
+# Загружаем предобученный BertForSequenceClassification
+model = BertForSequenceClassification.from_pretrained(
+    "bert-base-uncased", # название предобученной модели
+    num_labels = 2, # 2 класса
+    output_attentions = False, # attention веса не будут возвращаться моделью
+    output_hidden_states = False, # hidden-states не будут возвращаться моделью
+)
 
-# Отправляем модель на GPU
+# Отправляем модель на GPU, если она туда влезет
 if torch.cuda.is_available():
     model.cuda()
 
@@ -214,18 +219,18 @@ for epoch_i in range(0, epochs):
         b_input_ids = batch[0].to(device)
         b_input_mask = batch[1].to(device)
         b_labels = batch[2].to(device)
-        
+
         # обнуляем градиенты
         model.zero_grad()        
 
         # прямой проход
         outputs = model(b_input_ids.to(torch.long), 
                     token_type_ids=None, 
-                    attention_mask=b_input_mask.to(torch.long), 
-                    labels=b_labels.to(torch.long))
+                    attention_mask=b_input_mask, 
+                    labels=b_labels)
        
                # потери
-        loss = outputs.loss
+        loss = outputs[0]
         total_loss += loss.item()
 
         # обратный проход
@@ -280,9 +285,8 @@ for epoch_i in range(0, epochs):
         with torch.no_grad():        
             # прямой проход
             outputs = model(b_input_ids.to(torch.long), 
-                    token_type_ids=None, 
-                    attention_mask=b_input_mask.to(torch.long), 
-                    labels=b_labels.to(torch.long))
+                            token_type_ids=None, 
+                            attention_mask=b_input_mask)
         
         # "logits" хранят вероятности классов похоже на softmax
         logits = outputs.logits
@@ -315,7 +319,7 @@ plt.ylabel("Loss")
 plt.show()
 
 # Обученную модель можно сохранить для дальнейшего использования
-output_dir = './model2_save_ru/'
+output_dir = './model2_save/'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 # сохранять нужно как модель, так и tokenizer
@@ -323,24 +327,32 @@ model_to_save = model.module if hasattr(model, 'module') else model
 model_to_save.save_pretrained(output_dir)
 tokenizer.save_pretrained(output_dir)
 
-# Загрузим предобученную модель
-model_dir = './model_save_toxic/'
-model = BertForSequenceClassification.from_pretrained(model_dir)
-tokenizer = BertTokenizer.from_pretrained(model_dir)
+# Загружаются модель и tokenizer с помощью метода  from_pretrained
+# главное не перепутать самого Берта, т.к. для разных задач применяются разные типы, например:
+# BertModel
+# BertForPreTraining
+# BertForMaskedLM
+# BertForNextSentencePrediction
+# BertForTokenClassification
+# BertForQuestionAnswering
 
+# BertForSequenceClassification - наш вариант
+model = BertForSequenceClassification.from_pretrained('./model_save/')
+tokenizer = BertTokenizer.from_pretrained('./model_save/')
+
+
+# Далее загруженная модель может использоваться для дообучения или для работы
 model.to(device)
 
-
 # Проверим как оно работает
-# sentence = 'Почитайте посты у этого автора,может найдете что нибудь полезное.'
-sentence = 'Ну, посмотрел я комментарии к твоим постам, процент говнокомментов ниже средней отметки.'
+sentence = 'They caused him to become president by making him.'
+sentence = 'Clearly, John probably will immediately learn French perfectly.'
+
 enc_s = tokenizer.encode(sentence,                      
-                        add_special_tokens = True, # У казываем, что нам нужно добавить служебные токены
+                        add_special_tokens = True, # Указываем, что нам нужно добавить служебные токены
                         padding = 'max_length',  # дополнение до макс.длины
                         max_length = 64,         # максимальная длина предложений
-                        truncation = True        # все что длиннее max_length будет обрезаться
                    )
-
 # Формируем список id токенов
 input_ids = np.array(enc_s)
 
@@ -357,6 +369,3 @@ logits = outputs.logits
 logits = logits.detach().cpu().numpy()
 predicted_label = np.argmax(logits, axis=1).flatten()
 print(predicted_label)
-
-
-
